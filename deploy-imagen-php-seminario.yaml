@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: imagen-php-seminario
+  name: imagen-php-seminario
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imagen-php-seminario
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: imagen-php-seminario
+    spec:
+      containers:
+      - image: imagen-php-seminario
+        imagePullPolicy: IfNotPresent
+        name: imagen-php-seminario
+        resources: {}
+status: {}
