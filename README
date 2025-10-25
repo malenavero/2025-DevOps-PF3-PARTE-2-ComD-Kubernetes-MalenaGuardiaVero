@@ -1,0 +1,147 @@
+# 2025 DevOps - PF3 Kubernetes con Minikube
+
+**Seminario de Actualización DevOps**  
+**_Malena Guardia Vero_**  
+**_Comisión D_**  
+**_IFTS 29_**  
+**_Fecha:_** 24/10/2025
+
+---
+
+## PARTE 2
+
+#### 1)​ Crear y configurar un repositorio
+ Este punto lo realicé directamente en GitHub, creando un nuevo repositorio llamado `2025-DevOps-PF3-PARTE-2-ComD-Kubernetes-MalenaGuardiaVero`. Luego lo cloné en mi carpeta local usando git clone.
+
+
+ LINK DEL REPO: [https://github.com/malena-guardia/2025-DevOps-PF3-PARTE-2-ComD-Kubernetes-MalenaGuardiaVero](https://github.com/malenavero/2025-DevOps-PF3-PARTE-2-ComD-Kubernetes-MalenaGuardiaVero)
+
+ #### 2) Colocar este codigo php en el repositorio dentro de la carpeta `src`:
+```php
+<?php
+echo "Seminario Devop! Bienvenido a mi repo ".gethostname()."\n";
+?>
+```
+
+Eso lo hice a través de este comando desde la terminal en la raíz del repositorio clonado:
+```bash
+mkdir src
+echo '<?php
+echo "Seminario Devop! Bienvenido a mi repo ".gethostname()."\n";
+?>' > src/index.php
+``` 
+
+#### 3)​ Construir y probar la imagen de Docker
+**a) Crear un dockerfile**
+```
+FROM php:fpm-alpine
+RUN mkdir -p /var/www/html
+COPY --chown=nobody src/ /var/www/html/
+WORKDIR /var/www/html
+CMD ["php", "-S", "0.0.0.0:80", "-t", "/var/www/html/"]
+```
+
+Este archivo lo cree directamente desde el vscode en la raíz del repositorio con el nombre `Dockerfile`.
+
+**b) Explicar porque usa la carpeta /var/www y porque usa chown**
+La carpeta */var/www* es la ubicación estándar para los archivos web en muchos servidores. Al usar esta ruta, se asegura que la aplicación se ejecute en un entorno que imita un servidor de producción típico.
+
+ El comando chown se usa para cambiar el propietario (change owner) de los archivos copiados a 'nobody', un usuario sin privilegios, lo que mejora la seguridad al evitar que el proceso PHP se ejecute con privilegios elevados, ya que por default los contenedores suelen correr como root.
+
+**c)​ Hace un docker build -t del repo**
+Vamos a usar un tag "imagen-php-seminario" para identificar la imagen que vamos a crear.
+```bash
+docker build -t imagen-php-seminario .
+```
+
+![alt text](image.png)
+**d)​ Acceder y comprobar**
+```bash
+docker run -d -p 8080:80 imagen-php-seminario
+``` 
+
+![alt text](image-2.png)
+#### 4)​ Minikube
+
+**a) Ejecutar el comando minikube image load “imagen-php-seminario” para hacer el deploy de esta miniapp.**
+```bash
+minikube image load imagen-php-seminario
+```
+**b) Comprobar con minikube image ls**
+```bash
+minikube image ls
+```
+**c)​ Ejecutar el comando kubectl create deployment para crear el deploy de la imagen**
+```bash
+ minikube kubectl -- create deployment imagen-php-seminario --image=imagen-php-seminario --dry-run=client -o yaml > deploy-imagen-php-seminario.yaml
+```
+El punto anterior creó el deploy generó el archivo yaml llamado `deploy-imagen-php-seminario.yaml`
+![alt text](image-3.png)
+**d)​ Adjuntar el archivo al trabajo y una breve descripción**
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: imagen-php-seminario
+  name: imagen-php-seminario
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imagen-php-seminario
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: imagen-php-seminario
+    spec:
+      containers:
+      - image: imagen-php-seminario
+        name: imagen-php-seminario
+        resources: {}
+status: {}
+```
+El archivo YAML define un Deployment de Kubernetes para la imagen Docker "imagen-php-seminario". Especifica que se debe crear un pod con un contenedor basado en esta imagen, y establece una réplica del pod para asegurar que siempre haya una instancia en ejecución.
+**e)​ Correr el deploy con kubectl apply -f deploy-nombre.yaml**
+```bash
+ minikube kubectl --  apply -f deploy-imagen-php-seminario.yaml
+```
+
+Esto me retorno este error:
+```minikube kubectl --  apply -f deploy-imagen-php-seminario.yaml
+error: error validating "deploy-imagen-php-seminario.yaml": error validating data: failed to download openapi: Get "https://192.168.49.2:8443/openapi/v2?timeout=32s": dial tcp 192.168.49.2:8443: connect: no route to host; if you choose to ignore these errors, turn validation off with --validate=false
+```
+Para solucionarlo, reinicié minikube con el comando `minikube stop` seguido de `minikube start`, y luego volví a cargar la imagen con `minikube image load imagen-php-seminario` y ejecuté el comando `kubectl apply -f deploy-imagen-php-seminario.yaml`, lo que permitió que el deployment se aplicara correctamente sin errores.
+
+![alt text](image-4.png)
+
+**f)​ Verificar el deploy y si se creo el pod usando los siguientes comandos**
+```bash
+minikube kubectl -- get deployments
+```
+![alt text](image-5.png)
+```bash
+minikube kubectl -- get pods
+```
+![alt text](image-6.png)
+
+Como vemos aca, la imagen de imagen-php-seminario tiene un error de ErrImagePull, después de investigar ví que esto se debe a que Kubernetes no puede encontrar la imagen "imagen-php-seminario" en un registro público. Para eso agregué al archivo deploy-imagen-php-seminario.yaml la línea `imagePullPolicy: IfNotPresent` dentro de la sección del contenedor, lo que indica a Kubernetes que use la imagen local si está disponible, evitando así el intento de descargarla de un registro externo. Luego de hacer este cambio, apliqué nuevamente el deployment con `minikube kubectl -- apply -f deploy-imagen-php-seminario.yaml` y verifiqué los pods con `minikube kubectl -- get pods`, lo que ahora muestra el pod en estado "Running".
+![alt text](image-9.png)
+**g)​ Crear el servicio usando expose**
+```bash
+minikube kubectl -- expose deployment/imagen-php-seminario --type="NodePort" --port 80
+```
+![alt text](image-7.png)
+
+```bash
+minikube kubectl -- get services
+```
+![alt text](image-8.png)
+**h)​ Explicar que hace el comando minikube service**
+```bash
+minikube service imagen-php-seminario
+```
+Este comando abre un túnel a la aplicación que se está ejecutando en el clúster de Minikube, permitiendo acceder a ella a través de un navegador web. 
+![alt text](image-10.png)
+![alt text](image-11.png)
